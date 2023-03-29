@@ -116,6 +116,8 @@ class particleFilter:
         self.resampling()
         self.propagation()
 
+sigmoid = lambda x: 1 / (1 + np.exp(-x)) 
+
 
 class particleFilter2D(particleFilter):
 
@@ -124,31 +126,32 @@ class particleFilter2D(particleFilter):
 
     def _init_filters(self):
         # dims: (num of filters, num of items, num of items)
-        self.filters = self.sig0*self.rng.randn(
-            self.N, self.n_items, self.n_items)
+        # filters_x for the x axis 
+        # filters_y for the y axis
+        self.filters_x = self.sig0*self.rng.randn(self.N, self.n_items)
+        self.filters_y = self.sig0*self.rng.randn(self.N, self.n_items)
         # uniform weights: w0 = 1/N
         self.weights = np.ones([self.N]) / self.N
 
-    def reweight(self, obs, rel):
+    def reweight(self, obs):
         
         # unpack the current observation
-        (xi, yi), (xj, yj) = obs
+        i, j, x_rel, y_rel = obs
+
+        # The likelihood is calculated using the l1 distance
         # pos val if the filter directioin agreed with the real direction
         # e.g. 
-        # real: xi < xj, filter: f(xi) - f(xj) < 0; x_diff > 0 
-        # real: xi > xj, filter: f(xi) - f(xj) < 0; x_diff < 0 
-        # real: xi > xj, filter: f(xi) - f(xj) > 0; x_diff > 0 
-        # real: xi < xj, filter: f(xi) - f(xj) > 0; x_diff < 0 
-        diff = (self.filters[:, xi, yi]-
-                self.filters[:, xj, yj])* rel.shape([-1, 2])
-        # local updating
-        lcl = 1 / (1 + np.exp(-self.beta*(diff.sum(axis=(1, 2)))))
+        # real: xi < xj, filter: f(xi) - f(xj) < 0; x_match > 0 
+        # real: xi > xj, filter: f(xi) - f(xj) < 0; x_match < 0 
+        # real: xi > xj, filter: f(xi) - f(xj) > 0; x_match > 0 
+        # real: xi < xj, filter: f(xi) - f(xj) > 0; x_match < 0 
+        x_match = (self.filters_x[:, i]-self.filters_x[:, j])*x_rel 
+        y_match = (self.filters_y[:, i]-self.filters_y[:, j])*y_rel
+        # local updating, p(x, y)=p(x)p(y)
+        lcl = sigmoid(self.beta*x_match) * sigmoid(self.beta*y_match)
         # global updating
-        # x_diff > 0, y_diff > 0; glb = .5+ (1+1)/4  = 1
-        # x_diff < 0, y_diff > 0; glb = .5+ (-1+1)/4 = .5 
-        # x_diff > 0, y_diff < 0; glb = .5+ (1+-1)/4 = .5 
-        # x_diff < 0, y_diff < 0; glb = .5+ (-1-1)/4 = 0
-        glb = 1 * (.5+(np.sign(diff).sum(axis=(1,2)))/8)
+        # x_match > 0, y_match > 0; glb = 1, otherwsie = 0
+        glb = 1 * (x_match>0) * (y_match>0) 
         # like
         g_y1v = self.alpha*glb + lcl
         # reweight and normalized 
@@ -160,19 +163,20 @@ class particleFilter2D(particleFilter):
         # sampling with replacement
         sel_idx = self.rng.choice(self.N, size=self.N, 
                     replace=True, p=self.weights.reshape([-1]))
-        self.filters = self.filters[sel_idx, :, :]
+        self.filters_x = self.filters_x[sel_idx, :]
+        self.filters_y = self.filters_y[sel_idx, :]
         # reset weights to w0 = 1/N
         self.weights = np.ones([self.N]) / self.N
 
     def propagation(self):
 
         # random drft the particles 
-        self.filters += self.sigd*self.rng.randn(
-            self.N, self.n_items, self.n_items)
+        self.filters_x += self.sigd*self.rng.randn(self.N, self.n_items)
+        self.filters_y += self.sigd*self.rng.randn(self.N, self.n_items)
 
-    def step(self, obs, rel):
+    def step(self, obs):
 
-        self.reweight(obs, rel)
+        self.reweight(obs)
         self.resampling()
         self.propagation()
 

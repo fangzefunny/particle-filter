@@ -85,7 +85,7 @@ class viz:
         # Larger scale for plots in notebooks
         sns.set_context('talk')
         sns.set_style("ticks", {'axes.grid': False})
-        mpl.rcParams['axes.spines.right']  = False
-        mpl.rcParams['axes.spines.top']    = False
+        # mpl.rcParams['axes.spines.right']  = False
+        # mpl.rcParams['axes.spines.top']    = False
 
 
