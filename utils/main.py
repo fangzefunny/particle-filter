@@ -76,7 +76,10 @@ class particleFilter:
         # local updating
         lcl = 1 / (1 + np.exp(-self.beta*(diff)))
         # global updating
-        glb = 1*(diff > 0)
+        below = (diff > 0)
+        all_diff  = self.filters[:, [j]] - self.filters
+        immediate = (np.abs(diff) == np.sort(np.abs(all_diff), axis=1)[:, 1])
+        glb = 1*below*immediate
         # like
         return self.alpha*glb + lcl
     
